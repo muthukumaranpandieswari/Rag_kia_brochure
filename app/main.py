@@ -1,24 +1,39 @@
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import weaviate
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
 
 from app.config import settings
 
 
+class AskRequest(BaseModel):
+    question: str = Field(..., min_length=1)
+    top_k: int = Field(default=4, ge=1, le=10)
+
+
 class KiaBrochureRAG:
     def __init__(self):
-        self.client = None
-        self.embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL)
+        self.client: Optional[weaviate.Client] = None
+        self.embedding_model: Optional[SentenceTransformer] = None
+
+    def _get_embedding_model(self) -> SentenceTransformer:
+        if self.embedding_model is None:
+            self.embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL)
+        return self.embedding_model
 
     def connect(self):
         if self.client is not None:
             return self.client
 
         if not settings.WEAVIATE_URL or not settings.WEAVIATE_API_KEY:
-            raise RuntimeError("WEAVIATE_URL and WEAVIATE_API_KEY must be set")
+            raise RuntimeError(
+                "WEAVIATE_URL and WEAVIATE_API_KEY must be set before querying the RAG database."
+            )
 
         self.client = weaviate.Client(
             url=settings.WEAVIATE_URL,
@@ -29,6 +44,9 @@ class KiaBrochureRAG:
 
     def ensure_collection(self):
         self.connect()
+        if self.client is None:
+            raise RuntimeError("Weaviate client is unavailable.")
+
         if self.client.schema.exists(settings.WEAVIATE_COLLECTION):
             return
 
@@ -72,42 +90,42 @@ class KiaBrochureRAG:
                 "model": "Sportage",
                 "year": 2025,
                 "source": "Seed data",
-                "content": "The Kia Sportage is a compact SUV with a bold design, roomy interior, and advanced driver assistance systems. It offers efficient hybrid powertrains, a large digital cockpit, smart connectivity, and comfortable seating for families. The Sportage includes safety features such as lane-keeping assist, forward collision warning, adaptive cruise control, and parking sensors.",
+                "content": "The Kia Sportage is a compact SUV with a bold design, roomy interior, and advanced driver assistance systems. It offers efficient hybrid powertrains, a large digital cockpit, and practical cargo space for daily use and family travel.",
             },
             {
                 "title": "Kia EV6 Brochure",
                 "model": "EV6",
                 "year": 2025,
                 "source": "Seed data",
-                "content": "The Kia EV6 is a high-performance all-electric crossover. It delivers sharp acceleration, rapid charging capability, a spacious cabin, and a premium infotainment setup. Range depends on trim and driving conditions, but the EV6 is designed for everyday commuting and longer highway trips with efficient battery management.",
+                "content": "The Kia EV6 is a high-performance all-electric crossover. It delivers rapid acceleration, long-range capability, fast charging, and an advanced infotainment system designed for modern drivers.",
             },
             {
                 "title": "Kia Sorento Brochure",
                 "model": "Sorento",
                 "year": 2025,
                 "source": "Seed data",
-                "content": "The Kia Sorento is a midsize SUV built for families and road trips. It offers three rows of seating, ample cargo space, versatile interior layouts, and available hybrid powertrain options. Safety features include blind-spot monitoring, lane centering, rear occupant alert, and intelligent cruise control.",
+                "content": "The Kia Sorento is a midsize SUV built for families and road trips. It offers three rows of seating, flexible interior layouts, ample cargo space, and available hybrid powertrain options.",
             },
             {
                 "title": "Kia Carnival Brochure",
                 "model": "Carnival",
                 "year": 2025,
                 "source": "Seed data",
-                "content": "The Kia Carnival is a modern MPV focused on comfort, convenience, and family utility. It offers flexible seating, generous cabin space, premium comfort features, and large infotainment screens. The Carnival includes practical storage, a smooth ride quality, and smart safety systems designed around family travel.",
+                "content": "The Kia Carnival is a modern MPV focused on comfort, convenience, and family utility. It includes flexible seating, generous cabin space, premium comfort features, and a connected driver experience.",
             },
             {
                 "title": "Kia Seltos Brochure",
                 "model": "Seltos",
                 "year": 2025,
                 "source": "Seed data",
-                "content": "The Kia Seltos is a compact SUV with a youthful design, a technology-rich cabin, and versatile performance. It offers efficient engine choices, a comfortable ride, good visibility, and available safety technology. The Seltos is suitable for city driving and weekend adventures with practical storage and a compact footprint.",
+                "content": "The Kia Seltos is a compact SUV with a youthful design, technology-rich cabin, and versatile performance. It offers efficient engine choices, a comfortable ride, and smart convenience features.",
             },
             {
                 "title": "Kia Niro Brochure",
                 "model": "Niro",
                 "year": 2025,
                 "source": "Seed data",
-                "content": "The Kia Niro is a compact crossover designed around efficiency and everyday usability. Available in hybrid and electric variants, it emphasizes low running costs, smooth city driving, and a comfortable cabin. The Niro offers modern connectivity, useful safety features, and a practical interior for daily life.",
+                "content": "The Kia Niro is a compact crossover designed around efficiency and everyday usability. It is available in hybrid and electric variants and emphasizes low running costs, smooth driving, and practical design.",
             },
         ]
         return brochures
@@ -138,13 +156,17 @@ class KiaBrochureRAG:
 
     def _ingest_documents(self, documents: List[Dict[str, Any]]):
         self.ensure_collection()
+        if self.client is None:
+            raise RuntimeError("Weaviate client is unavailable.")
+
         self.client.batch.configure(batch_size=20)
+        model = self._get_embedding_model()
 
         with self.client.batch as batch:
-            for idx, doc in enumerate(documents):
+            for doc in documents:
                 chunks = self._chunk_text(doc["content"])
                 for chunk_index, chunk in enumerate(chunks):
-                    vector = self.embedding_model.encode(chunk).tolist()
+                    vector = model.encode(chunk).tolist()
                     batch.add_data_object(
                         data_object={
                             "title": doc["title"],
@@ -170,7 +192,10 @@ class KiaBrochureRAG:
     def query(self, question: str, top_k: int = 4):
         self.connect()
         self.ensure_collection()
-        vector = self.embedding_model.encode(question).tolist()
+        if self.client is None:
+            raise RuntimeError("Weaviate client is unavailable.")
+
+        vector = self._get_embedding_model().encode(question).tolist()
         response = (
             self.client.query.get(
                 settings.WEAVIATE_COLLECTION,
@@ -186,7 +211,10 @@ class KiaBrochureRAG:
 
     def build_answer_from_context(self, question: str, results: List[Dict[str, Any]]) -> str:
         if not results:
-            return "I could not find any matching Kia brochure content. Please ingest brochure files or try a different question."
+            return (
+                "I could not find any matching Kia brochure content. "
+                "Please ingest brochure files or try a different question."
+            )
 
         context = "\n\n".join(item.get("content", "") for item in results if item.get("content"))
         question_lower = question.lower()
@@ -209,3 +237,57 @@ class KiaBrochureRAG:
         model = top.get("model", "Kia")
         summary = context[:700]
         return f"From the {model} materials ({title}), the brochure says: {summary}"
+
+
+app = FastAPI(title="Kia Brochure RAG", version="1.0.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("startup")
+def startup_event():
+    app.state.rag = KiaBrochureRAG()
+
+
+@app.get("/")
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "kia-brochure-rag"}
+
+
+@app.post("/ask")
+async def ask_question(payload: AskRequest):
+    rag = app.state.rag
+
+    try:
+        if settings.WEAVIATE_URL and settings.WEAVIATE_API_KEY:
+            results = rag.query(payload.question, payload.top_k)
+        else:
+            directory = settings.DATA_DIR
+            if os.path.isdir(directory):
+                rag.ingest_brochures(directory)
+            else:
+                rag.ingest_brochures()
+            results = rag.query(payload.question, payload.top_k)
+
+        answer = rag.build_answer_from_context(payload.question, results)
+        return {
+            "question": payload.question,
+            "answer": answer,
+            "results": results,
+        }
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - safety net for runtime issues
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {exc}") from exc
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=False)
