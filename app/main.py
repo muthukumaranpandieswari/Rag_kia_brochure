@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 import weaviate
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
@@ -90,42 +91,42 @@ class KiaBrochureRAG:
                 "model": "Sportage",
                 "year": 2025,
                 "source": "Seed data",
-                "content": "The Kia Sportage is a compact SUV with a bold design, roomy interior, and advanced driver assistance systems. It offers efficient hybrid powertrains, a large digital cockpit, and practical cargo space for daily use and family travel.",
+                "content": "The Kia Sportage is a compact SUV with a bold design, roomy interior, and advanced driver assistance systems. It offers efficient hybrid powertrains, a large digital cockpit, and flexible cargo space for everyday use.",
             },
             {
                 "title": "Kia EV6 Brochure",
                 "model": "EV6",
                 "year": 2025,
                 "source": "Seed data",
-                "content": "The Kia EV6 is a high-performance all-electric crossover. It delivers rapid acceleration, long-range capability, fast charging, and an advanced infotainment system designed for modern drivers.",
+                "content": "The Kia EV6 is a high-performance all-electric crossover. It delivers rapid acceleration, fast charging, long-range battery options, and a premium infotainment experience designed for modern drivers.",
             },
             {
                 "title": "Kia Sorento Brochure",
                 "model": "Sorento",
                 "year": 2025,
                 "source": "Seed data",
-                "content": "The Kia Sorento is a midsize SUV built for families and road trips. It offers three rows of seating, flexible interior layouts, ample cargo space, and available hybrid powertrain options.",
+                "content": "The Kia Sorento is a midsize SUV focused on family comfort and versatility. It offers three rows of seating, flexible cargo space, available hybrid efficiency, and driver assistance features for long trips.",
             },
             {
                 "title": "Kia Carnival Brochure",
                 "model": "Carnival",
                 "year": 2025,
                 "source": "Seed data",
-                "content": "The Kia Carnival is a modern MPV focused on comfort, convenience, and family utility. It includes flexible seating, generous cabin space, premium comfort features, and a connected driver experience.",
+                "content": "The Kia Carnival is a modern family vehicle built around comfort and convenience. It provides spacious seating, premium cabin technology, practical storage, and a smooth ride for everyday travel.",
             },
             {
                 "title": "Kia Seltos Brochure",
                 "model": "Seltos",
                 "year": 2025,
                 "source": "Seed data",
-                "content": "The Kia Seltos is a compact SUV with a youthful design, technology-rich cabin, and versatile performance. It offers efficient engine choices, a comfortable ride, and smart convenience features.",
+                "content": "The Kia Seltos is a compact SUV with a youthful design, connected cabin technology, and versatile performance. It combines efficient engine options, comfortable handling, and smart interior practicality.",
             },
             {
                 "title": "Kia Niro Brochure",
                 "model": "Niro",
                 "year": 2025,
                 "source": "Seed data",
-                "content": "The Kia Niro is a compact crossover designed around efficiency and everyday usability. It is available in hybrid and electric variants and emphasizes low running costs, smooth driving, and practical design.",
+                "content": "The Kia Niro is a compact crossover built around efficiency and everyday usability. Available in hybrid and electric variants, it focuses on lower running costs, comfort, and a practical design.",
             },
         ]
         return brochures
@@ -254,7 +255,301 @@ def startup_event():
     app.state.rag = KiaBrochureRAG()
 
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
+async def home_page():
+    return HTMLResponse(
+        """
+        <!doctype html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>Kia Easy Care Assistant</title>
+            <style>
+                :root {
+                    --kia-red: #c4172a;
+                    --kia-red-dark: #8f0d1d;
+                    --bg: #0d1117;
+                    --panel: rgba(18, 24, 32, 0.9);
+                    --panel-soft: rgba(30, 39, 48, 0.9);
+                    --text: #edf2f7;
+                    --muted: #b7c2d1;
+                    --line: rgba(255, 255, 255, 0.08);
+                    --bubble-user: #c4172a;
+                    --bubble-bot: #161d27;
+                    --shadow: 0 28px 56px rgba(0, 0, 0, 0.35);
+                }
+
+                * { box-sizing: border-box; }
+
+                body {
+                    margin: 0;
+                    min-height: 100vh;
+                    font-family: Inter, "Segoe UI", sans-serif;
+                    background:
+                        radial-gradient(circle at top, rgba(196, 23, 42, 0.25), transparent 28%),
+                        linear-gradient(135deg, #04070b 0%, #0d1117 42%, #101820 100%);
+                    color: var(--text);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 24px;
+                }
+
+                .chat-shell {
+                    width: min(100%, 980px);
+                    background: var(--panel);
+                    border: 1px solid var(--line);
+                    border-radius: 26px;
+                    box-shadow: var(--shadow);
+                    overflow: hidden;
+                    backdrop-filter: blur(14px);
+                }
+
+                .topbar {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 16px;
+                    padding: 20px 24px;
+                    background: rgba(255,255,255,0.02);
+                    border-bottom: 1px solid var(--line);
+                }
+
+                .brand {
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                    font-weight: 700;
+                    letter-spacing: 0.03em;
+                }
+
+                .brand-mark {
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 12px;
+                    display: grid;
+                    place-items: center;
+                    background: linear-gradient(135deg, var(--kia-red) 0%, var(--kia-red-dark) 100%);
+                    font-size: 1.1rem;
+                    box-shadow: 0 12px 30px rgba(196, 23, 42, 0.45);
+                }
+
+                .status {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 8px 12px;
+                    border-radius: 999px;
+                    background: rgba(58, 197, 132, 0.12);
+                    border: 1px solid rgba(58, 197, 132, 0.35);
+                    color: #99f1bd;
+                    font-size: 0.8rem;
+                }
+
+                .status::before {
+                    content: "";
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                    background: #3bc57f;
+                    display: block;
+                    box-shadow: 0 0 12px rgba(59, 197, 127, 0.8);
+                }
+
+                .messages {
+                    max-height: 520px;
+                    overflow-y: auto;
+                    padding: 26px 22px 18px;
+                    background: rgba(10, 14, 18, 0.8);
+                }
+
+                .message {
+                    display: flex;
+                    margin-bottom: 18px;
+                    animation: fadeIn 0.2s ease;
+                }
+
+                .message.user { justify-content: flex-end; }
+                .message.bot { justify-content: flex-start; }
+
+                .bubble {
+                    max-width: min(76%, 620px);
+                    padding: 14px 16px;
+                    border-radius: 18px;
+                    line-height: 1.6;
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                }
+
+                .message.user .bubble {
+                    background: linear-gradient(135deg, var(--kia-red) 0%, #d83a4f 100%);
+                    color: white;
+                    border-bottom-right-radius: 6px;
+                }
+
+                .message.bot .bubble {
+                    background: var(--bubble-bot);
+                    border: 1px solid var(--line);
+                    color: var(--text);
+                    border-bottom-left-radius: 6px;
+                }
+
+                .composer {
+                    display: flex;
+                    gap: 14px;
+                    align-items: flex-end;
+                    padding: 20px 22px 24px;
+                    border-top: 1px solid var(--line);
+                    background: rgba(255,255,255,0.02);
+                }
+
+                .input-wrap {
+                    flex: 1;
+                    background: rgba(255,255,255,0.03);
+                    border: 1px solid var(--line);
+                    border-radius: 18px;
+                    padding: 12px 14px;
+                }
+
+                textarea {
+                    width: 100%;
+                    resize: none;
+                    border: none;
+                    outline: none;
+                    background: transparent;
+                    color: var(--text);
+                    font: inherit;
+                    min-height: 56px;
+                    max-height: 180px;
+                }
+
+                textarea::placeholder { color: var(--muted); }
+
+                button {
+                    border: none;
+                    border-radius: 16px;
+                    background: linear-gradient(135deg, var(--kia-red) 0%, #d9464e 100%);
+                    color: white;
+                    font: inherit;
+                    font-weight: 700;
+                    padding: 16px 22px;
+                    cursor: pointer;
+                    transition: transform 0.15s ease, opacity 0.2s ease;
+                }
+
+                button:hover:not(:disabled) { transform: translateY(-1px); }
+                button:disabled { opacity: 0.7; cursor: wait; }
+
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(4px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+
+                @media (max-width: 620px) {
+                    .topbar { padding: 16px 18px; }
+                    .brand { font-size: 0.9rem; }
+                    .messages { padding: 18px 16px 12px; }
+                    .composer { padding: 16px; }
+                    .bubble { max-width: 85%; }
+                    .composer { flex-direction: column; }
+                    button { width: 100%; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="chat-shell">
+                <div class="topbar">
+                    <div class="brand">
+                        <div class="brand-mark">K</div>
+                        <span>Kia Easy Care</span>
+                    </div>
+                    <div class="status">Online</div>
+                </div>
+
+                <div id="chatMessages" class="messages">
+                    <div class="message bot">
+                        <div class="bubble">Hi! I'm Kia Easy Care. Ask me about Kia models, features, comfort, efficiency, and vehicle guidance.</div>
+                    </div>
+                </div>
+
+                <form id="chatForm" class="composer">
+                    <div class="input-wrap">
+                        <textarea id="questionInput" placeholder="Ask about Kia vehicles, technology, or care support..." aria-label="Ask Kia Easy Care"></textarea>
+                    </div>
+                    <button type="submit">Ask</button>
+                </form>
+            </div>
+
+            <script>
+                const form = document.getElementById('chatForm');
+                const input = document.getElementById('questionInput');
+                const messages = document.getElementById('chatMessages');
+
+                function addMessage(role, text) {
+                    const row = document.createElement('div');
+                    row.className = 'message ' + role;
+
+                    const bubble = document.createElement('div');
+                    bubble.className = 'bubble';
+                    bubble.textContent = text;
+
+                    row.appendChild(bubble);
+                    messages.appendChild(row);
+                    messages.scrollTop = messages.scrollHeight;
+                }
+
+                form.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+                    const question = input.value.trim();
+                    if (!question) return;
+
+                    addMessage('user', question);
+                    input.value = '';
+                    input.focus();
+
+                    const submitButton = form.querySelector('button');
+                    submitButton.disabled = true;
+                    submitButton.textContent = 'Thinking...';
+
+                    const pending = document.createElement('div');
+                    pending.className = 'message bot';
+                    const pendingBubble = document.createElement('div');
+                    pendingBubble.className = 'bubble';
+                    pendingBubble.textContent = 'Thinking...';
+                    pending.appendChild(pendingBubble);
+                    messages.appendChild(pending);
+
+                    try {
+                        const response = await fetch('/ask', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ question, top_k: 4 })
+                        });
+
+                        const data = await response.json();
+                        if (!response.ok) {
+                            throw new Error(data.detail || 'Something went wrong.');
+                        }
+
+                        const answer = data.answer || 'I could not find a relevant answer.';
+                        pending.remove();
+                        addMessage('bot', answer);
+                    } catch (error) {
+                        pending.remove();
+                        addMessage('bot', 'I am unable to answer that right now. Please try a different question or check the service status.');
+                    } finally {
+                        submitButton.disabled = false;
+                        submitButton.textContent = 'Ask';
+                    }
+                });
+            </script>
+        </body>
+        </html>
+        """
+    )
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "kia-brochure-rag"}
